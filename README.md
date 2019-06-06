@@ -10,7 +10,7 @@ This bot **fully automates** the tiresome process of doing that yourself, and in
 
 ![preview image](https://i.imgur.com/6WCKahA.png)
 
-Log file:
+Example log output:
 ```
 [14:34:36] Attempting to fetch voucher for b10c-3yvd-7dus, launching phantomjs
 [14:34:55] Filling out form https://voice.fast-insight.com/s/7Rwd1/f/f37e23bcf43c73fbfc0f08e988f72b19?lang=de&timestamp=1559736180
@@ -45,4 +45,10 @@ Log file:
 4. Rename `config.example.json` to `config.json` and open it with your text editor of choice
 5. Replace `YOUR_TG_BOT_TOKEN` with your telegram bot token
 6. Replace `YOUR_CHATID` with your chat id (`/start` the bot to display it) or set `telegram_users` to `"*"` to allow commands from all users
-7. Send the bot a valid receipt code, it will then try to fill out the survey.
+7. Point `"phantomjs_path"` to the path of your phantomjs installation, will be `bin/phantomjs.exe` if running on Windows with the default setup
+8. Usage: Send the bot a valid receipt code, it will then try to fill out the survey.
+
+# FAQ
+> Sometimes it doesn't pass a question and has to retry. What is this about?
+
+If it clicks the confirm button too fast the website might not have registered that it answered the question yet. It also sometimes selects incorrect choices, but it will usually just pass on the second or third try.
