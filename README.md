@@ -1,7 +1,7 @@
 # McDonalds survey bot
 Get your free drinks for receipt codes faster. 🧾 🡢 🥤
 
-# What the fuck is this?
+# What the f*** is this about?
 McDonald's germany currently has an offer where you can get a free drink or coffee after filling out a survey and entering a valid receipt code:
 
 ![preview image 2](https://i.imgur.com/3cQjqCZ.png)

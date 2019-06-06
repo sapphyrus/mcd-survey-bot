@@ -1,13 +1,11 @@
 require "bundler/inline"
 
 gemfile($DEBUG) do
-  source 'https://rubygems.org'
-  gem "telegram-bot-ruby", "~> 0.10.1"
-  require "telegram/bot"
+	source "https://rubygems.org"
 
+	gem "telegram-bot-ruby", :require => "telegram/bot"
 	gem "selenium-webdriver", "~> 3.6.0"
 	gem "phantomjs"
-	gem "pry"
 	gem "chunky_png"
 
 	require "securerandom"
@@ -15,6 +13,9 @@ gemfile($DEBUG) do
 	require "uri"
 	require "net/http"
 	require "net/https"
+
+	# development dependencies
+	gem "pry" if $DEBUG
 end
 
 class Selenium::WebDriver::Element
@@ -23,7 +24,7 @@ class Selenium::WebDriver::Element
 	end
 end
 
-class McDonaldsSolver
+class McDonaldsSurveySolver
 	attr_accessor :log
 
 	def initialize()
@@ -52,7 +53,7 @@ class McDonaldsSolver
 	end
 
 	def randomize_str(template)
-		# "Ich {Möchte|Ich möchte|Ich will|ich will|will} {hierzu|dazu|dadrauf|darauf} keine {Antwort|antwort|Auskunft|auskunft} {geben|abgeben|sagen}{|.}"
+		# template: "Ich {Möchte|Ich möchte|Ich will|ich will|will} {hierzu|dazu|dadrauf|darauf} keine {Antwort|antwort|Auskunft|auskunft} {geben|abgeben|sagen}{|.}"
 		out_str = ""
 		template.split("{").each do |template_part|
 			random_part = template_part.split("}")
@@ -71,8 +72,7 @@ class McDonaldsSolver
 	def fetch_voucher(code, text_answer, url)
 		result = {
 			:success => false,
-			:message => "message not set",
-			:solver => self
+			:message => "message not set"
 		}
 
 		puts "Attempting to fetch voucher for #{code}, launching phantomjs"
@@ -104,7 +104,7 @@ class McDonaldsSolver
 			browser.action.send_keys(code_el, code + "\n").perform
 			start_url = browser.current_url
 
-			20.times do
+			40.times do
 				break if browser.current_url != start_url
 				begin
 					error_el = browser.find_element(css: "#errorMessage")
@@ -113,17 +113,17 @@ class McDonaldsSolver
 						result[:image] = browser.save_screenshot(image_path)
 						return result
 					end
-			  rescue Selenium::WebDriver::Error::NoSuchElementError
-					sleep 1
+				rescue Selenium::WebDriver::Error::NoSuchElementError
+					sleep 0.5
 				end
 			end
 
 			unless browser.current_url.start_with? "https://voice.fast-insight.com/s/"
-				result[:message] = "**Failed to get redirected to survey!** Got redirected to #{browser.current_url}"
+				result[:message] = "**Failed to get redirected to survey!**\nCurrent URL: #{browser.current_url}"
 				result[:image] = browser.save_screenshot(image_path)
 				return result
 			end
-			puts "Filling out survey #{browser.current_url}"
+			puts "Got redirected to survey at '#{browser.current_url}', filling out."
 
 			progress_el = wait.until do
 				browser.find_element(xpath: "//*[@id=\"control-wrapper\"]/div/div[1]/div[2]")
@@ -153,7 +153,7 @@ class McDonaldsSolver
 
 					if question == question_prev
 						if fails > 4
-							puts "[#{progress_el.text}] Didn't pass question after 5x."
+							puts "[#{progress_el.text}] Didn't pass question '#{question}' after 5 tries."
 							result[:message] = "**Failed to answer question after 5 tries!**\nQuestion: `#{question}`"
 							result[:image] = browser.save_screenshot(image_path)
 							return result
@@ -210,12 +210,13 @@ class McDonaldsSolver
 								return result
 							end
 						else
-							# 0-10 probably
 							if rate_els.count > 8
+								# probably 0-10
 								rate_els = rate_els[0..3]
 							elsif rate_els.count == 2
+								# probably yes or no question?
 								rate_els.each_with_index do |el, i|
-									if el.text.downcase.include? "ja"
+									if el.text.downcase.include?("ja") || el.text.downcase.include?("yes")
 										rate_els = rate_els[i..i]
 										break
 									end
@@ -267,6 +268,8 @@ class McDonaldsSolver
 			code = voucher_code.text.split(" ")[1..-1].join(" ")
 			puts "Code: #{code}"
 			puts "Done!"
+
+			# this image is lazy loaded or some shit, really annoying and breaks ticket rect so we just get rid of it
 			browser.execute_script("return document.getElementById('cardThankyou').childNodes[2].src = null")
 
 			begin
@@ -310,7 +313,13 @@ Telegram::Bot::Client.run(config[:telegram_token]) do |bot|
 
 	bot.fetch_updates do |message|
 		puts "[TG <] @#{message.chat.id}: #{message.text.inspect}"
-		if config[:telegram_users] == "*" || config[:telegram_users].include?(message.chat.id)
+
+		if message.text == "/start"
+			text = "Your Chat ID is `#{message.chat.id}`."
+			bot.api.send_message(chat_id: message.chat.id, text: text, parse_mode: "Markdown")
+			puts "[TG >] @#{message.chat.id}: #{text.inspect}"
+
+		elsif config[:telegram_users] == "*" || config[:telegram_users].include?(message.chat.id)
 			code = message.text.chomp(" ")
 			parts = code.split("-")
 			if !parts.nil? && parts[0].length == 4 && parts[1].length == 4 && parts[2].length == 4 && !code.include?(" ")
@@ -321,16 +330,17 @@ Telegram::Bot::Client.run(config[:telegram_token]) do |bot|
 					loop do
 						break if done
 						bot.api.send_chat_action(chat_id: message.chat.id, action: "typing")
-						sleep 2
+						sleep 4
 					end
 				end
 
 				begin
-					solver = McDonaldsSolver.new
+					solver = McDonaldsSurveySolver.new
 					result = solver.fetch_voucher("#{parts[0]}-#{parts[1]}-#{parts[2]}", config[:text_answer], config[:url])
 					done = true
 
 					log_url = nil
+					message = result[:message]
 					begin
 						uri = URI.parse("https://hastebin.com/documents")
 						http = Net::HTTP.new(uri.host, uri.port)
@@ -343,35 +353,32 @@ Telegram::Bot::Client.run(config[:telegram_token]) do |bot|
 						# Send the request
 						response = http.request(request)
 						log_url = "https://hastebin.com/#{JSON.parse(response.body)["key"]}.txt"
-					rescue StandardError
+					rescue StandardError => e
+						puts "Uploading to hastebin failed: #{generate_exception_message(e)}"
 					end
 
-					result[:message] += "\n" + "Full log: #{log_url}" if result.key?(:message) && !log_url.nil?
-					puts "[TG >] @#{message.chat.id}: #{result[:message].inspect}"
+					message += "\n" + "Full log: #{log_url}" if !message.nil? && !log_url.nil?
+					puts "[TG >] @#{message.chat.id}: #{message.inspect}"
 
 					begin
 						throw "no image" unless result.key? :image
 						path = result[:image]
 						path = path.path if path.is_a? File
-						message_result = bot.api.send_photo(chat_id: message.chat.id, caption: result[:message], parse_mode: "Markdown", photo: Faraday::UploadIO.new(path, 'image/png'))
+						message_result = bot.api.send_photo(chat_id: message.chat.id, caption: message, parse_mode: "Markdown", photo: Faraday::UploadIO.new(path, 'image/png'))
 						throw "upload failed" unless message_result["ok"]
 					rescue StandardError => e
-						bot.api.send_message(chat_id: message.chat.id, text: result[:message], parse_mode: "Markdown")
+						bot.api.send_message(chat_id: message.chat.id, text: message, parse_mode: "Markdown")
 					end
 
 					solver.cleanup
 				rescue => e
-					binding.pry
+					puts "Generic error occurred while handling solve request: #{generate_exception_message(e)}"
 				end
 			else
 				text = "That doesn't seem like a valid code. Example: `b10c-3yvd-0dus`"
 				bot.api.send_message(chat_id: message.chat.id, text: text, parse_mode: "Markdown")
 				puts "[TG >] @#{message.chat.id}: #{text.inspect}"
 			end
-		elsif message.text == "/start"
-			text = "Your Chat ID is `#{message.chat.id}`."
-			bot.api.send_message(chat_id: message.chat.id, text: text, parse_mode: "Markdown")
-			puts "[TG >] @#{message.chat.id}: #{text.inspect}"
 		end
 	end while true
 end
