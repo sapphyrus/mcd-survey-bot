@@ -1,0 +1,7 @@
+{
+	"url": "https://mcdonalds.fast-insight.com/voc/de/",
+	"text_answer": "{Möchte|Ich möchte|Ich will|ich will|will|mag|Mag|Werde|Ich werde|ich werde} {|hierzu|dazu|dadrauf|darauf} {keine|ihnen keine} {Antwort|antwort|Auskunft|auskunft} {geben|abgeben|sagen}{||||||||.|.|.|.|.|.|.|.|..|...}",
+	"telegram_token": "YOUR_TG_BOT_TOKEN",
+	"telegram_users": ["YOUR_CHATID"],
+	"phantomjs_path": "bin/phantomjs.exe"
+}
