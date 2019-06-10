@@ -372,7 +372,7 @@ Telegram::Bot::Client.run(config[:telegram_token]) do |bot|
 
 					solver.cleanup
 				rescue => e
-					puts "Generic error occurred while handling solve request: #{generate_exception_message(e)}"
+					puts "Generic error occurred while handling solve request: #{e.class.to_s}: #{e.message} (#{e.backtrace.inspect})"
 				end
 			else
 				text = "That doesn't seem like a valid code. Example: `b10c-3yvd-0dus`"
